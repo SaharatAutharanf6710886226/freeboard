@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoT Realtime Dashboard (iot-226)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <!-- Firebase App & Database (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8 font-sans antialiased">
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- Header Section -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-2xl backdrop-blur">
+      <div>
+        <div class="flex items-center space-x-3">
+          <div class="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-400">
+            <i class="fa-solid fa-microchip text-2xl"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-blue-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
+              ESP32 Realtime Sensor Dashboard
+            </h1>
+            <p class="text-slate-400 text-sm mt-0.5 flex items-center gap-2">
+              <span>Database: <strong class="text-slate-300">iot-226</strong></span>
+              <span class="text-slate-600">•</span>
+              <span>Endpoint: <code class="px-2 py-0.5 rounded bg-slate-800 text-emerald-400 text-xs">/freeboard</code></span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-4 mt-4 md:mt-0">
+        <!-- Live Status Pill -->
+        <div id="status-pill" class="flex items-center space-x-2.5 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold tracking-wider">
+          <span class="relative flex h-2.5 w-2.5">
+            <span id="ping-dot" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span id="status-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span id="status-text">ONLINE</span>
+        </div>
+
+        <div class="text-right hidden sm:block text-xs text-slate-400">
+          <div>อัปเดตล่าสุด:</div>
+          <div id="last-updated" class="font-mono text-slate-200 font-bold">--:--:--</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 6 Sensor Cards Grid (ขั้นต่ำ 6 คอลัมน์) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      
+      <!-- 1. Temperature -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-red-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Temperature</span>
+          <i class="fa-solid fa-temperature-half text-red-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-temp" class="text-3xl font-extrabold text-red-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">°C</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ช่วงปกติ: 25.0 - 35.0 °C</div>
+      </div>
+
+      <!-- 2. Humidity -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-blue-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Humidity</span>
+          <i class="fa-solid fa-droplet text-blue-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-hum" class="text-3xl font-extrabold text-blue-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">%</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ความชื้นสัมพัทธ์</div>
+      </div>
+
+      <!-- 3. Light Intensity -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-amber-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Light Intensity</span>
+          <i class="fa-solid fa-sun text-amber-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-light" class="text-3xl font-extrabold text-amber-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">lx</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ความสว่างแสง</div>
+      </div>
+
+      <!-- 4. Pressure -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-purple-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Pressure</span>
+          <i class="fa-solid fa-gauge-high text-purple-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-press" class="text-3xl font-extrabold text-purple-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">hPa</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ความกดอากาศ</div>
+      </div>
+
+      <!-- 5. CO2 -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-emerald-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">CO₂ Level</span>
+          <i class="fa-solid fa-wind text-emerald-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-co2" class="text-3xl font-extrabold text-emerald-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">ppm</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ระดับคาร์บอนฯ</div>
+      </div>
+
+      <!-- 6. Battery -->
+      <div class="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-lg hover:border-teal-500/50 transition duration-200">
+        <div class="flex justify-between items-center text-slate-400 mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider">Battery</span>
+          <i class="fa-solid fa-battery-three-quarters text-teal-400 text-lg"></i>
+        </div>
+        <div class="flex items-baseline space-x-1">
+          <span id="val-batt" class="text-3xl font-extrabold text-teal-400 font-mono">--</span>
+          <span class="text-sm font-medium text-slate-400">%</span>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">ระดับแบตเตอรี่</div>
+      </div>
+
+    </div>
+
+    <!-- Charts Grid (2 Realtime Charts) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      <!-- Chart 1: Climate & Light -->
+      <div class="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-blue-400"></i>
+            สภาพแวดล้อม (Temp / Hum / Light)
+          </h2>
+          <span class="text-xs text-slate-500">ประวัติ 15 ค่าล่าสุด</span>
+        </div>
+        <div class="relative h-72 w-full">
+          <canvas id="climateChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Pressure, CO2 & Battery -->
+      <div class="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+            <i class="fa-solid fa-chart-area text-purple-400"></i>
+            สภาวะอากาศและอุปกรณ์ (Pressure / CO₂ / Batt)
+          </h2>
+          <span class="text-xs text-slate-500">ประวัติ 15 ค่าล่าสุด</span>
+        </div>
+        <div class="relative h-72 w-full">
+          <canvas id="deviceChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Historical Data Table (10 ค่าล่าสุด) -->
+    <div class="bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-xl">
+      <h3 class="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-table-list text-teal-400"></i>
+        บันทึกข้อมูลย้อนหลังล่าสุด (History Logs)
+      </h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="text-xs uppercase bg-slate-800/80 text-slate-400 border-b border-slate-700">
+            <tr>
+              <th scope="col" class="py-3 px-4">เวลา (Time)</th>
+              <th scope="col" class="py-3 px-4 text-red-400">Temp (°C)</th>
+              <th scope="col" class="py-3 px-4 text-blue-400">Hum (%)</th>
+              <th scope="col" class="py-3 px-4 text-amber-400">Light (lx)</th>
+              <th scope="col" class="py-3 px-4 text-purple-400">Pressure (hPa)</th>
+              <th scope="col" class="py-3 px-4 text-emerald-400">CO₂ (ppm)</th>
+              <th scope="col" class="py-3 px-4 text-teal-400">Battery (%)</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body" class="divide-y divide-slate-800 font-mono text-xs">
+            <tr>
+              <td colspan="7" class="text-center py-6 text-slate-500">กำลังโหลดข้อมูลประวัติ...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // การตั้งค่า Firebase RTDB URL
+    const firebaseConfig = {
+      databaseURL: "https://iot-999-c12e6-default-rtdb.firebaseio.com"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ตัวแปรเชื่อมต่อสถานะ Firebase (.info/connected)
+    db.ref('.info/connected').on('value', (snap) => {
+      const statusPill = document.getElementById('status-pill');
+      const statusText = document.getElementById('status-text');
+      const pingDot = document.getElementById('ping-dot');
+      const statusDot = document.getElementById('status-dot');
+
+      if (snap.val() === true) {
+        statusPill.className = "flex items-center space-x-2.5 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold tracking-wider";
+        pingDot.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+        statusDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500";
+        statusText.innerText = "ONLINE";
+      } else {
+        statusPill.className = "flex items-center space-x-2.5 px-4 py-2 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold tracking-wider";
+        pingDot.className = "hidden";
+        statusDot.className = "relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500";
+        statusText.innerText = "DISCONNECTED";
+      }
+    });
+
+    // Chart 1: Climate (Temp, Humidity, Light)
+    const ctxClimate = document.getElementById('climateChart').getContext('2d');
+    const climateChart = new Chart(ctxClimate, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Temp (°C)', borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.1)', data: [], tension: 0.3, yAxisID: 'y' },
+          { label: 'Humidity (%)', borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)', data: [], tension: 0.3, yAxisID: 'y' },
+          { label: 'Light (lx)', borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', data: [], tension: 0.3, yAxisID: 'y1' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: { display: true, text: 'Temp / Hum', color: '#94a3b8' },
+            ticks: { color: '#94a3b8' },
+            grid: { color: '#1e293b' }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: { display: true, text: 'Light (lx)', color: '#fbbf24' },
+            ticks: { color: '#fbbf24' },
+            grid: { drawOnChartArea: false }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: '#f8fafc' } }
+        }
+      }
+    });
+
+    // Chart 2: Device & Air (Pressure, CO2, Battery)
+    const ctxDevice = document.getElementById('deviceChart').getContext('2d');
+    const deviceChart = new Chart(ctxDevice, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Pressure (hPa)', borderColor: '#c084fc', data: [], tension: 0.3, yAxisID: 'y' },
+          { label: 'CO₂ (ppm)', borderColor: '#34d399', data: [], tension: 0.3, yAxisID: 'y1' },
+          { label: 'Battery (%)', borderColor: '#2dd4bf', data: [], tension: 0.3, yAxisID: 'y2' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+          y: {
+            type: 'linear',
+            display: true,
+            position: 'left',
+            title: { display: true, text: 'Pressure (hPa)', color: '#c084fc' },
+            ticks: { color: '#c084fc' },
+            grid: { color: '#1e293b' }
+          },
+          y1: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            title: { display: true, text: 'CO₂ (ppm)', color: '#34d399' },
+            ticks: { color: '#34d399' },
+            grid: { drawOnChartArea: false }
+          },
+          y2: {
+            type: 'linear',
+            display: false,
+            min: 0,
+            max: 100
+          }
+        },
+        plugins: {
+          legend: { labels: { color: '#f8fafc' } }
+        }
+      }
+    });
+
+    // 1. รับข้อมูล Real-time ค่าปัจจุบันจาก /latest
+    db.ref('latest').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        document.getElementById('val-temp').innerText = Number(data.temperature ?? 0).toFixed(1);
+        document.getElementById('val-hum').innerText = Number(data.humidity ?? 0).toFixed(1);
+        document.getElementById('val-light').innerText = Number(data.light ?? 0).toFixed(0);
+        document.getElementById('val-press').innerText = Number(data.pressure ?? 0).toFixed(1);
+        document.getElementById('val-co2').innerText = Number(data.co2 ?? 0).toFixed(0);
+        document.getElementById('val-batt').innerText = Number(data.battery ?? 0).toFixed(1);
+
+        if (data.timestamp) {
+          const date = new Date(data.timestamp * 1000);
+          document.getElementById('last-updated').innerText = date.toLocaleTimeString('th-TH');
+        } else {
+          document.getElementById('last-updated').innerText = new Date().toLocaleTimeString('th-TH');
+        }
+      }
+    });
+
+    // 2. รับข้อมูล Real-time ประวัติย้อนหลัง 15 รายการจาก /history
+    db.ref('history').limitToLast(15).on('value', (snapshot) => {
+      const historyData = snapshot.val();
+      if (historyData) {
+        const labels = [];
+        const temp = [], hum = [], light = [];
+        const press = [], co2 = [], batt = [];
+        const tableRows = [];
+
+        Object.keys(historyData).forEach((key) => {
+          const item = historyData[key];
+          let timeLabel = '';
+          if (item.timestamp) {
+            const d = new Date(item.timestamp * 1000);
+            timeLabel = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          } else {
+            timeLabel = key.substring(0, 6);
+          }
+
+          labels.push(timeLabel);
+          temp.push(item.temperature);
+          hum.push(item.humidity);
+          light.push(item.light);
+          press.push(item.pressure);
+          co2.push(item.co2);
+          batt.push(item.battery);
+
+          tableRows.unshift(`
+            <tr class="hover:bg-slate-800/50 transition">
+              <td class="py-2.5 px-4 font-bold text-slate-300">${timeLabel}</td>
+              <td class="py-2.5 px-4 text-red-400">${Number(item.temperature ?? 0).toFixed(1)}</td>
+              <td class="py-2.5 px-4 text-blue-400">${Number(item.humidity ?? 0).toFixed(1)}</td>
+              <td class="py-2.5 px-4 text-amber-400">${Number(item.light ?? 0).toFixed(0)}</td>
+              <td class="py-2.5 px-4 text-purple-400">${Number(item.pressure ?? 0).toFixed(1)}</td>
+              <td class="py-2.5 px-4 text-emerald-400">${Number(item.co2 ?? 0).toFixed(0)}</td>
+              <td class="py-2.5 px-4 text-teal-400">${Number(item.battery ?? 0).toFixed(1)}</td>
+            </tr>
+          `);
+        });
+
+        // อัปเดตกราฟที่ 1 (Climate)
+        climateChart.data.labels = labels;
+        climateChart.data.datasets[0].data = temp;
+        climateChart.data.datasets[1].data = hum;
+        climateChart.data.datasets[2].data = light;
+        climateChart.update();
+
+        // อัปเดตกราฟที่ 2 (Device)
+        deviceChart.data.labels = labels;
+        deviceChart.data.datasets[0].data = press;
+        deviceChart.data.datasets[1].data = co2;
+        deviceChart.data.datasets[2].data = batt;
+        deviceChart.update();
+
+        // อัปเดตตารางประวัติ (สูงสุด 10 รายการ)
+        document.getElementById('history-table-body').innerHTML = tableRows.slice(0, 10).join('');
+      }
+    });
+  </script>
+</body>
+</html>
